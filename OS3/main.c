@@ -5,146 +5,89 @@
 #include<time.h>
 #include<unistd.h> 
 #include<sys/wait.h>
+#include"fileIO.h"
+#include <sys/types.h> 
 
 #define WRITE 1
 #define READ  0
-
-int days[128];
-int customers[128];
-char* items[128][64];
-char* itemSet[128];
-int lineNo = 0;
-
-int fpeek(FILE *stream) { //Peek next char in the file
-    int c;
-    c = fgetc(stream);
-    ungetc(c, stream);
-    return c;
-}
-
-int isUnique(char* str){
-    int i=0;
-    if (itemSet[i] == NULL){
-        return 1;
-    }
-    do{
-        if(!strncmp(str, itemSet[i], strlen(str))){
-            return 0;
-        }
-        i++;
-    }while (itemSet[i] != NULL);
-
-    return 1;
-}
-
-void readFile(const char* fileName){
-
-    FILE *file;
-    file = fopen(fileName, "read");
-
-    if(file == NULL){
-        printf("Error! File not found.");   
-        exit(1);
-    }
-    char c;
-    char tmp[64];
-    int wordLen = 0, wordNo = 0;
-
-    while((c = fgetc(file)) != EOF){
-
-        if(c == ' '){
-            char p = fpeek(file);
-            if(isalpha(p) == 0 || wordLen == 0){
-                continue;
-            }
-        }
-
-        if(c == ',' || c == '\r'){
-
-            tmp[wordLen] = '\0';
-
-            if(wordNo == 0){
-                int numLen = wordLen - 4;
-                char subStr[numLen+1];
-                for(int i=0; i<numLen; i++){
-                    subStr[i] = tmp[4+i];
-                }
-                subStr[numLen] = '\0';
-                days[lineNo] = atoi(subStr);
-            }else if (wordNo == 1){
-                int numLen = wordLen - 9;
-                char subStr[numLen+1];
-                for(int i=0; i<numLen; i++){
-                    subStr[i] = tmp[9+i];
-                }
-                subStr[numLen] = '\0';
-                customers[lineNo] = atoi(subStr);
-            }else{
-                char str[wordLen];
-                char* strPointer = malloc(sizeof(char)*wordLen);
-                for(int i=0; i<wordLen+1;i++){
-                    str[i] = tmp[i];
-                }
-                strcpy(strPointer, str);
-                items[lineNo][wordNo-2] = strPointer;         
-            }
-
-            if(c == '\r'){
-                c = fgetc(file);
-                wordNo = 0;
-                lineNo++;
-            }else{
-                wordNo++;
-            }
-            wordLen = 0;
-
-        }else{
-            tmp[wordLen] = c;
-            wordLen++;
-        }
-    }
-    fclose(file);
-}
 
 int randr(int min, int max){
    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
-void writeFile(const char* fileName){
-    FILE *file;
-    file = fopen(fileName, "w");
-    int i = 0;
-    srand(time(NULL)); // initialization for random
-    while(itemSet[i] != NULL){
-        fprintf(file,"%s, %d₺\n", itemSet[i], randr(1,100));
-        i++;
+int isUnique(char* str, char* itemSet[]){
+    int i=0;
+    if (itemSet[i] == NULL){
+        return 1;
     }
-    fclose(file);
+    do{
+        if(!strcmp(str, itemSet[i])){
+            return 0;
+        }
+        i++;
+    }while(itemSet[i] != NULL);
+
+    return 1;
 }
 
 void createPrices(){
-    readFile("market.txt");
+    
+    Transaction* transactions = readFile("market.txt");
+    char* itemSet[1024];
+    int priceSet[1024];
     int uniqueNum = 0;
-    for(int i=0; i<lineNo; i++){
-        int j = 0;
-        while(items[i][j] != NULL){    
-            if(isUnique(items[i][j])){
-                itemSet[uniqueNum] = items[i][j];
-                //printf("\nSTR: %s, len: %zu", items[i][j], strlen(items[i][j]));
+    int j, i=0;
+    while(transactions[i].customer != NULL){
+        j = 0;
+        while(transactions[i].items[j] != NULL){
+            if(isUnique(transactions[i].items[j], itemSet)){
+                itemSet[uniqueNum] = transactions[i].items[j];
+                priceSet[uniqueNum] = randr(1,100);
                 uniqueNum++;
             }
-            j++; 
+            j++;
         }
+        i++;
     }
-    writeFile("price.txt");
+    writeFile("price.txt", itemSet, priceSet);
 }
-
 
 
 int main(){
 
     createPrices();
+
     
+/*
+    TESTER
+    int j, i=0;
+    while(transactions[i].customer != NULL){
+        printf("\nDay: %d", transactions[i].day);
+        printf("\nCustomer: %d", transactions[i].customer);
+        j = 0;
+        while(transactions[i].items[j] != NULL){
+            printf("\nItem: %s", transactions[i].items[j]);
+            j++;
+        }
+        i++;
+    }
+*/
+    fflush(stdout);
+
+    int n1 = fork(); 
+    int n2 = fork();
+    int n3 = fork();
+  
+    if (n1 > 0 && n2 > 0 && n3 > 0) { 
+        printf("parent\n"); 
+        printf("%d %d \n", n1, n2); 
+        printf(" my id is %d \n", getpid()); 
+    } 
+
+    
+    return 0; 
+
+/*
     pid_t pid;
     int fds[2]; // file descriptor
 
@@ -153,12 +96,11 @@ int main(){
       fprintf (stderr, "Pipe failed.\n");
       return EXIT_FAILURE;
     }
-
+    
     for(int i = 0; i < 7; i++) {
         pid = fork();
         if (pid == (pid_t) 0) {
-            /* CHILD PROCESS
-                Close other end first. */
+            // CHILD PROCES    Close other end first. 
             int taskId;
             printf("Hi, I am child %d\n", i);
             close (fds[WRITE]);
@@ -168,18 +110,18 @@ int main(){
             exit(0);
         }
         else if (pid < (pid_t) 0){
-            /* The fork failed. */
+            // The fork failed. 
             fprintf (stderr, "Fork failed.\n");
             return EXIT_FAILURE;
         }
         else {
-            /* PARENT PROCESS
-                Close other end first. */
+            // PARENT PROCESS Close other end first. 
             int taskId = randr(1,5);
             close (fds[READ]);
             write(fds[WRITE], &taskId, sizeof(taskId));
             close(fds[WRITE]);
         }
     }
+    */
     return 1;
 }

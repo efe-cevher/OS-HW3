@@ -1,6 +1,11 @@
 {
     "files.associations": {
         "string.h": "c",
-        "transaction.h": "c"
+        "transaction.h": "c",
+        "time.h": "c",
+        "ctype.h": "c",
+        "fileio.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c"
     }
 }
