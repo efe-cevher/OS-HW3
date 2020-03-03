@@ -2,166 +2,221 @@
 #include<stdlib.h>
 #include<string.h>
 #include<ctype.h>
-#include"transaction.h"
+#include<time.h>
+#include<unistd.h> 
+#include<sys/wait.h>
+#include"fileIO.h"
+#include <sys/types.h> 
 
-int days[127];
-int customers[127];
-char* items[127][63];
-char* itemSet[127];
+#define WRITE 1
+#define READ  0
+#define BUFFER_SIZE 64
 
-
-/*
-struct transaction {
-    int day;
-    int customerId;
-    Item* items;
-};
-typedef struct transaction Transaction;
-
-struct item {
-    char* name;
-    int price;
-};
-typedef struct item Item;
-*/
-
-int fpeek(FILE *stream) {
-    int c;
-
-    c = fgetc(stream);
-    ungetc(c, stream);
-
-    return c;
+int randr(int min, int max){ //generate rand vaiue in range
+    
+    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
-int isUnique(char* strIn){
-    int i;
-    int len = sizeof(itemSet)/sizeof(itemSet[0]);
-
-    if(len > 0 ){
-        for(i = 0; i < len; ++i){
-            if(itemSet[i] != NULL){
-                if(!strncmp(itemSet[i], strIn, strlen(strIn))){
-                    return 0;
-                }
-            }
-            
-        }
+int isUnique(char* str, char* itemSet[]){ //check if item is unique return 1 if it is 0 if not
+    int i=0;
+    if (itemSet[i] == NULL){
+        return 1;
     }
-    
-    
+    do{
+        if(!strcmp(str, itemSet[i])){
+            return 0;
+        }
+        i++;
+    }while(itemSet[i] != NULL);
+
     return 1;
 }
 
-void readFile(const char* fileName){
-
-    FILE *file;
-    file = fopen(fileName, "read");
-
-    if(file == NULL){
-        printf("Error! File not found.");   
-        exit(1);
-    }
-    char c;
-    int wordLen = 0;
-    int wordNo = 0;
-    int lineNo = 0;
-    char tmp[63];
-    int uniqueCount=0;
-
-    while((c = fgetc(file)) != EOF){
-
-        if(c == ' '){
-            char p = fpeek(file);
-            if(isalpha(p) == 0 || wordLen == 0){
-                continue;
+void createPrices(){
+    
+    Transaction* transactions = readFile("market.txt"); //Get neccesary data from file, via method in FileIO.c
+    char* itemSet[1024];
+    int priceSet[1024];
+    int uniqueNum = 0;
+    int j, i=0;
+    while(transactions[i].customer > 0){ //While data is valid continue traversing the array
+        j = 0;
+        while(transactions[i].items[j] != NULL){
+            if(isUnique(transactions[i].items[j], itemSet)){
+                itemSet[uniqueNum] = transactions[i].items[j];
+                priceSet[uniqueNum] = randr(1,100); //set rand price
+                uniqueNum++;
             }
+            j++;
         }
-
-        if(c == ',' || c == '\n'){
-
-            tmp[wordLen] = '\0';
-
-            if(wordNo == 0){
-                int numLen = wordLen - 4;
-                char subStr[numLen+1];
-                for(int i=0; i<numLen; i++){
-                    subStr[i] = tmp[4+i];
-                }
-                subStr[numLen] = '\0';
-                days[lineNo] = atoi(subStr);
-            }else if (wordNo == 1){
-                int numLen = wordLen - 9;
-                char subStr[numLen+1];
-                for(int i=0; i<numLen; i++){
-                    subStr[i] = tmp[9+i];
-                }
-                subStr[numLen] = '\0';
-                customers[lineNo] = atoi(subStr);
-            }else{
-                char str[wordLen];
-                char* strPointer = malloc(sizeof(char)*wordLen);
-                for(int i=0; i<wordLen;i++){
-                    str[i] = tmp[i];
-                }
-                str[wordLen] = '\0'; 
-                strcpy(strPointer, str);
-                items[lineNo][wordNo-2] = strPointer;
-
-                printf("\n Str: %s", strPointer);
-
-                if(isUnique(strPointer)){
-                    itemSet[uniqueCount] = strPointer;
-                    uniqueCount++;
-                }
-            }
-
-            if(c == '\n'){
-                wordNo = 0;
-                wordLen = 0;
-                lineNo++;
-                continue;
-            }else{
-                wordNo++;
-                wordLen = 0;
-            }
-        }else{
-            tmp[wordLen] = c;
-            wordLen++;
-        }
+        i++;
     }
-    printf("\nCOUNT: %d", uniqueCount);
-    fclose(file);
+    writeFile("price.txt", itemSet, priceSet);
 }
 
-int main(){
+// Executed inside child provess when its turn
+void childProcess(int taskId, char* arg){
+    switch (taskId)
+    {
+    case 1:
+    {
+        char* argv[2];
+		argv[0] = "getProducts.out";
+        argv[1] = NULL; // with no arg
 
-    readFile("market.txt");
-
-    int counter = 0;
-    for (int i=0; i<20; i++){
-        printf("\nDay: %d", days[i]);
-        printf("\nCustomer: %d", customers[i]);
-        
-        for(int j=0; j<10; j++){
-            if(items[i][j] != NULL){
-                printf("\nItem: %s", items[i][j]);
-    
-            }
-            
-        }
-        
-        
-
-        
+		if(execv(argv[0], argv)==-1) //exec funciton to give the process the actual task
+			printf("Error in calling exec!!\n");
+        break;
     }
-    int i=0;
-        while (itemSet[i] != NULL)
-        {
-            printf("\n un: %s", itemSet[i]);
-            i++;
-        }
-    
+    case 2:
+    {
+        char* argv[2];
+		argv[0] = "findSellRate.out";
+        argv[1] = arg; // with arg
 
-    return 0;
+		if(execv(argv[0], argv)==-1)
+			printf("Error in calling exec!!\n");
+        break;
+    }
+    case 3:
+    {
+        char* argv[2];
+		argv[0] = "customerTotal.out";
+        argv[1] = arg;
+
+		if(execv(argv[0], argv)==-1)
+			printf("Error in calling exec!!\n");
+        break;
+    }
+    case 4:
+    {
+        char* argv[2];
+		argv[0] = "topCustomer.out";
+        argv[1] = NULL;
+
+		if(execv(argv[0], argv)==-1)
+			printf("Error in calling exec!!\n");
+        break;
+    }
+    case 5:
+    {
+        char* argv[2];
+		argv[0] = "mostProfit.out";
+        argv[1] = NULL;
+
+		if(execv(argv[0], argv)==-1)
+			printf("Error in calling exec!!\n");
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+
+
+int main(){
+    
+    srand(time(NULL)); //initalizer for randoms to work
+    createPrices(); //Create prices.txt
+
+    // file descriptors
+    int fds[2]; //pipe to send task id 
+    int fds2[2]; // child process that took the task id sends back its pid to make parent process wait until its done
+
+    if (pipe (fds) || pipe(fds2)){
+        fprintf (stderr, "Pipe failed.\n");
+        return EXIT_FAILURE;
+    }
+
+    int n1 = fork(); 
+    int n2 = fork();
+    int n3 = fork();
+    //Created 7 child processes, there are total 8 processes now
+
+    if (n1 > 0 && n2 > 0 && n3 > 0) { //PARENT PROCESS
+
+    close(fds[READ]);
+    close (fds2[WRITE]);
+
+        while (1){
+
+            sleep(1); // waiting for better testing experience
+
+            char argTmp[BUFFER_SIZE];
+            
+            
+            int taskId = randr (1,5); //Choose a random task
+
+            printf("\n\n>Task No:%d is about to be executed! (if any child processes left)\n\n", taskId);
+            sleep(2); // waiting for better testing experience
+
+            if(taskId == 2){
+                printf("Enter the target product to find its sell rate: ");
+                scanf(" %s", argTmp);
+            }else if(taskId == 3){
+                printf("Enter target customers id: ");
+                scanf(" %s", argTmp);
+            }
+
+            char arg[BUFFER_SIZE];
+            for(int i=0; i<BUFFER_SIZE; i++){
+                arg[i] = argTmp[i];
+            }
+            char task[BUFFER_SIZE];
+
+            sprintf(task, "%d,%s", taskId, arg); //combined task id and argument as string before sending (make sure they goes to same process) 
+            write(fds[WRITE], &task, BUFFER_SIZE);
+            char childPid[BUFFER_SIZE];
+            
+            read(fds2[READ], &childPid, BUFFER_SIZE);
+            
+            pid_t cPid = (pid_t) atoi(childPid);
+            int status;
+            waitpid(cPid,&status,0); //Parent waits for the executing task
+            
+
+        }
+        close(fds2[READ]);
+        close(fds[WRITE]);
+
+    }else if(n1<0 || n2<0 || n3<0){ //Error condition
+        fprintf (stderr, "Fork Failed\n");
+        return EXIT_FAILURE;
+    }
+    
+    else{ //CHILD PROCESSES
+
+        close (fds[WRITE]);
+        close (fds2[READ]);
+
+        while (1){
+
+            char task[BUFFER_SIZE];
+            read(fds[READ], task, BUFFER_SIZE);     
+
+            char *pt;
+            pt = strtok (task,",");
+
+            int taskId = atoi(pt);
+            pt = strtok (NULL, ",");
+            char* arg = pt;
+
+            if(taskId > 0 && taskId <6){
+
+                //printf("CHILD entering my id is %d \n", getpid());
+                char childPid[BUFFER_SIZE];
+                sprintf(childPid, "%d", getpid());
+                write(fds2[WRITE], childPid, BUFFER_SIZE); //feedback to parent
+                childProcess(taskId, arg); //exec
+                exit(0); // end process successfully
+            }
+        }
+
+        close(fds[READ]);
+        close(fds2[WRITE]);
+
+    }
+
+    return 1;
 }

@@ -10,7 +10,7 @@ Product products[128];
 int days[128];
 int customers[128];
 char* items[128][64];
-int lineNo = 0;
+
 
 int fpeek(FILE *stream) { //Peek next char in the file
     int c;
@@ -19,9 +19,11 @@ int fpeek(FILE *stream) { //Peek next char in the file
     return c;
 }
 
-Transaction* readFile(const char* fileName){
+//reads file char by char
+Transaction* readFile(const char* fileName){ //reads market.txt
 
     FILE *file;
+
     file = fopen(fileName, "read");
 
     if(file == NULL){
@@ -33,18 +35,17 @@ Transaction* readFile(const char* fileName){
     char tmp[64];
     int tmpDay = 0, tmpCustomerId = 0;
     char* itemsTemp[128];
-    int wordLen = 0, wordNo = 0;
+    int wordLen = 0, wordNo = 0, lineNo=0;
 
     while(c = fgetc(file)){
 
         if (c == EOF){
-            if(wordNo > 1){
+            if(wordNo > 1){ // situation for end of file with no linebreak, to get last line
                 c = '\r';
             }else{
                 break;
             }
-        }
-        
+        } 
 
         if(c == ' '){
             char p = fpeek(file);
@@ -57,7 +58,7 @@ Transaction* readFile(const char* fileName){
 
             tmp[wordLen] = '\0';
 
-            if(wordNo == 0){
+            if(wordNo == 0){ // get day as int
                 int numLen = wordLen - 4;
                 char subStr[numLen+1];
                 for(int i=0; i<numLen; i++){
@@ -65,7 +66,7 @@ Transaction* readFile(const char* fileName){
                 }
                 subStr[numLen] = '\0';
                 tmpDay = atoi(subStr);
-            }else if (wordNo == 1){
+            }else if (wordNo == 1){ //customer id as int
                 int numLen = wordLen - 9;
                 char subStr[numLen+1];
                 for(int i=0; i<numLen; i++){
@@ -73,7 +74,7 @@ Transaction* readFile(const char* fileName){
                 }
                 subStr[numLen] = '\0';
                 tmpCustomerId = atoi(subStr);
-            }else{
+            }else{ //remaining items as string
                 char str[wordLen];
                 char* strPointer = malloc(sizeof(char)*wordLen);
                 for(int i=0; i<wordLen+1;i++){
@@ -83,9 +84,9 @@ Transaction* readFile(const char* fileName){
                 itemsTemp[wordNo-2] = strPointer;         
             }
 
-            if(c == '\r'){
+            if(c == '\r'){ // end of line
 
-                Transaction* t = (Transaction*)malloc(sizeof(Transaction*));
+                Transaction* t = (Transaction*)malloc(sizeof(Transaction*)); // outputs as Transaction Type
                 t->day = tmpDay;
                 t->customer = tmpCustomerId;
 
@@ -112,18 +113,18 @@ Transaction* readFile(const char* fileName){
     return transactions;
 }
 
-void writeFile(const char* fileName, char* itemSet[], int priceSet[]){
+void writeFile(const char* fileName, char* itemSet[], int priceSet[]){ //write price.txt
     FILE *file;
     file = fopen(fileName, "w");
     int i = 0;
     while(itemSet[i] != NULL){
-        fprintf(file,"%s, %d₺\n", itemSet[i], priceSet[i]);
+        fprintf(file,"%s, %d₺\n", itemSet[i], priceSet[i]); //format
         i++;
     }
     fclose(file);
 }
 
-Product* readProducts(const char* fileName){
+Product* readProducts(const char* fileName){ //read price.txt get Product array
     FILE *file;
     file = fopen(fileName, "read");
 
@@ -137,7 +138,7 @@ Product* readProducts(const char* fileName){
     char tmp[64];
     char* tmpName;
     int tmpPrice = 0;
-    int wordLen = 0, wordNo = 0;
+    int wordLen = 0, wordNo = 0, lineNo=0;
 
     while(c = fgetc(file)){
 

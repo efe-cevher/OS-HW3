@@ -1,7 +1,8 @@
+
 struct transaction{
-    int day;
-    int customerId;
-    char** items;
+	int day;
+	int customer;
+    char *items[128];
 };
 
 typedef struct transaction Transaction;
